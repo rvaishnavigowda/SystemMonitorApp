@@ -2,6 +2,12 @@
 
 This is a cross-platform system monitor application built on .Net 8. It tracks system resources like CPU, memory, and disk usage and provides plugin support along with optional API integration.
 
+## Design Decisions and Challenges
+
+The System Monitor application is built using the Clean Architecture pattern to promote separation of concerns, scalability, and maintainability. The solution is structured into distinct layers—Domain, Application, Infrastructure, and Console with clear responsibilities. This modular design ensures that core business logic remains independent of external dependencies like the operating system APIs or the console UI. A key decision was to introduce a plugin system, allowing future enhancements or monitoring modules (e.g., GPU usage, network stats) to be added dynamically without changing the core codebase. 
+
+One of the main challenges was accessing accurate and real-time system metrics in a cross-platform manner. While Windows offers robust performance counters via WMI and System.Diagnostics, Linux and macOS require alternative approaches, and some metrics aren't universally available. Managing platform differences while keeping the core logic clean required careful abstraction.
+
 ## How to Build and Run the Solution
 
 ### Prerequisites
