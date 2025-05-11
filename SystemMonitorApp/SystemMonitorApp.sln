@@ -8,6 +8,9 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "3 SystemMonitorApp.Infrastructure", "SystemMonitorApp.Infrastructure\3 SystemMonitorApp.Infrastructure.csproj", "{9EDFE3A4-E52C-4E0B-B877-688373475C41}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "4 SystemMonitorApp.Console", "SystemMonitorApp.Console\4 SystemMonitorApp.Console.csproj", "{ED5EE56C-C354-4EBE-ACFA-2AFD220FD53A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{988A24DF-652E-4162-B934-B7167C317FCE} = {988A24DF-652E-4162-B934-B7167C317FCE}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "2 SystemMonitorApp.Application", "2.SystemMonitorApp.Application\2 SystemMonitorApp.Application.csproj", "{06530F65-D77C-4570-9C20-BEFABF192A25}"
 EndProject
