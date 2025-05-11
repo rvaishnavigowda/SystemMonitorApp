@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\2.SystemMonitorApp.Application\2 SystemMonitorApp.Application.csproj" />
+    <ProjectReference Include="..\SystemMonitorApp.Domain\1 SystemMonitorApp.Domain.csproj" />
     <ProjectReference Include="..\SystemMonitorApp.Infrastructure\3 SystemMonitorApp.Infrastructure.csproj" />
   </ItemGroup>
   

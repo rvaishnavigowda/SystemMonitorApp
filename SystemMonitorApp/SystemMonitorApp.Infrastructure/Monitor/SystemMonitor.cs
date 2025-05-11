@@ -30,27 +30,85 @@ namespace SystemMonitorApp.Infrastructure.Monitor
 
         private double GetCpuUsage()
         {
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return 0; // Skip CPU tracking on non-Windows for now
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return GetWindowsCpuUsage();
 
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return GetLinuxCpuUsage();
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return GetMacCpuUsage();
+
+            return 0;
+        }
+
+        private double GetWindowsCpuUsage()
+        {
             using var cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
-            cpuCounter.NextValue(); // Warm-up
+            cpuCounter.NextValue();
             Thread.Sleep(1000);
             return Math.Round(cpuCounter.NextValue(), 2);
+        }
+
+        private double GetLinuxCpuUsage()
+        {
+            try
+            {
+                var lines = File.ReadLines("/proc/stat");
+                var cpuLine = lines.FirstOrDefault(line => line.StartsWith("cpu "));
+                if (cpuLine == null) return 0;
+
+                var parts = cpuLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var user = double.Parse(parts[1]);
+                var nice = double.Parse(parts[2]);
+                var system = double.Parse(parts[3]);
+                var idle = double.Parse(parts[4]);
+
+                var total = user + nice + system + idle;
+                var used = user + nice + system;
+
+                return Math.Round(used / total * 100, 2);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private double GetMacCpuUsage()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo("sh", "-c \"ps -A -o %cpu | awk '{s+=$1} END {print s}'\"")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false
+                };
+
+                using var process = Process.Start(psi);
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+
+                return double.TryParse(output.Trim(), out var cpu) ? Math.Round(cpu, 2) : 0;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         private (double used, double total) GetRamUsage()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
                 return ReadLinuxMemoryInfo();
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return ReadWindowsMemoryInfo();
-            }
 
-            return (0, 0); // Default fallback
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return ReadWindowsMemoryInfo();
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return ReadMacMemoryInfo();
+
+            return (0, 0);
         }
 
         private (double used, double total) ReadWindowsMemoryInfo()
@@ -58,11 +116,8 @@ namespace SystemMonitorApp.Infrastructure.Monitor
             try
             {
                 using var session = CimSession.Create(null);
-                var results = session.QueryInstances(
-                    "root\\cimv2",
-                    "WQL",
-                    "SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem"
-                );
+                var results = session.QueryInstances("root\\cimv2", "WQL",
+                    "SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem");
 
                 var info = results.FirstOrDefault();
                 if (info == null) return (0, 0);
@@ -97,6 +152,39 @@ namespace SystemMonitorApp.Infrastructure.Monitor
             }
         }
 
+        private (double used, double total) ReadMacMemoryInfo()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo("vm_stat")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false
+                };
+
+                using var process = Process.Start(psi);
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+
+                double pageSize = 4096;
+                var lines = output.Split('\n');
+
+                double pagesFree = GetVmStatValue(lines, "Pages free");
+                double pagesActive = GetVmStatValue(lines, "Pages active");
+                double pagesInactive = GetVmStatValue(lines, "Pages inactive");
+                double pagesWired = GetVmStatValue(lines, "Pages wired down");
+
+                double used = (pagesActive + pagesInactive + pagesWired) * pageSize / (1024 * 1024);
+                double total = (pagesFree + pagesActive + pagesInactive + pagesWired) * pageSize / (1024 * 1024);
+
+                return (Math.Round(used, 2), Math.Round(total, 2));
+            }
+            catch
+            {
+                return (0, 0);
+            }
+        }
+
         private double GetKbValue(string[] lines, string key)
         {
             var line = lines.FirstOrDefault(l => l.StartsWith(key));
@@ -106,27 +194,23 @@ namespace SystemMonitorApp.Infrastructure.Monitor
             return double.TryParse(valuePart, out var value) ? value : 0;
         }
 
-        private (double used, double total) GetDiskUsage()
+        private double GetVmStatValue(string[] lines, string key)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                var drive = DriveInfo.GetDrives().FirstOrDefault(d => d.IsReady && d.Name == "C:\\");
-                if (drive == null) return (0, 0);
-
-                double total = drive.TotalSize / (1024.0 * 1024.0);
-                double free = drive.TotalFreeSpace / (1024.0 * 1024.0);
-                return (Math.Round(total - free, 2), Math.Round(total, 2));
-            }
-            else
-            {
-                var rootDrive = DriveInfo.GetDrives().FirstOrDefault(d => d.IsReady && d.Name == "/");
-                if (rootDrive == null) return (0, 0);
-
-                double total = rootDrive.TotalSize / (1024.0 * 1024.0);
-                double free = rootDrive.TotalFreeSpace / (1024.0 * 1024.0);
-                return (Math.Round(total - free, 2), Math.Round(total, 2));
-            }
+            var line = lines.FirstOrDefault(l => l.Contains(key));
+            if (line == null) return 0;
+            var parts = line.Split(':');
+            var valuePart = parts[1].Trim().Split('.')[0];
+            return double.TryParse(valuePart, out var value) ? value : 0;
         }
 
+        private (double used, double total) GetDiskUsage()
+        {
+            var drive = DriveInfo.GetDrives().FirstOrDefault(d => d.IsReady && (d.Name == "/" || d.Name == "C:\\"));
+            if (drive == null) return (0, 0);
+
+            double total = drive.TotalSize / (1024.0 * 1024.0);
+            double free = drive.TotalFreeSpace / (1024.0 * 1024.0);
+            return (Math.Round(total - free, 2), Math.Round(total, 2));
+        }
     }
 }
