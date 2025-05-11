@@ -1,0 +1,4 @@
+{
+  "ApiUrl": "https://example.com/api/resource",
+  "IntervalMs": 2000
+}
