@@ -16,7 +16,7 @@ One of the main challenges was accessing accurate and real-time system metrics i
 
 ### Running the Published Application
 
-Once you have extracted the files from the zip archive, follow the steps below to run the application:
+ Download the SystemMonitorEsecFile. Once you have extracted the files from the zip archive, follow the steps below to run the application:
 
 1. **Navigate to the folder** containing the `SystemMonitorApp.Console.exe` file. The path should look like this:
     ```
